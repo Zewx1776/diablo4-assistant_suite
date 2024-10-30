@@ -4,7 +4,7 @@ A collection of automation tools to assist with various Diablo 4 tasks.
 
 ## Features
 
-- Kurast Helper: Automates portal detection and tribute interactions
+- Kurast Helper: Automates portal detection and tribute interactions (wip for opening undercity portal and placing tribute)
 - Barter Assistant: Helps with restocking items at vendors
 - Enchant Helper: Assists with enchanting items
 - Masterwork Assistant: Helps with upgrading Masterwork items
