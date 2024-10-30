@@ -17,6 +17,7 @@ from PIL import ImageGrab, ImageTk
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, asdict
 import re 
+from shared_config import apply_theme
 
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
@@ -277,6 +278,7 @@ def validate_config(config: Config) -> bool:
     return True
 
 def main():
+    apply_theme()
     config = load_config()
     window = create_main_window(config)
 
