@@ -7,9 +7,6 @@ import json
 import os
 import threading
 import time
-import win32gui
-import win32api
-import win32con
 import keyboard
 import logging
 import tkinter as tk
@@ -156,38 +153,52 @@ class KurastProcess(threading.Thread):
 
 def create_main_window(config: KurastConfig) -> sg.Window:
     layout = [
-        [sg.Text("Kurast Configuration")],
-        [sg.Text("Portal Scan Region:"), 
+        [sg.Text("Kurast Configuration", font=('Helvetica', 20, 'bold'))],
+        [sg.Text("Portal Scan Region:", font=('Helvetica', 12)), 
          sg.Input(key='SCAN_REGION', 
                  default_text=','.join(map(str, config.scan_region)), 
-                 size=(20, 1)),
-         sg.Button("Get", key='GET_SCAN_REGION')],
-        [sg.Text("Portal Target Image:"), 
-         sg.Input(key='TARGET_IMAGE', default_text=config.target_image, size=(40, 1)),
-         sg.FileBrowse(file_types=(("PNG Files", "*.png"), ("All Files", "*.*"))),
-         sg.Button("Capture", key='CAPTURE_TARGET')],
-        [sg.Text("Tribute Spot:"),
+                 size=(30, 1),
+                 font=('Helvetica', 12)),
+         sg.Button("Get", key='GET_SCAN_REGION', font=('Helvetica', 12))],
+        [sg.Text("Portal Target Image:", font=('Helvetica', 12)), 
+         sg.Input(key='TARGET_IMAGE', default_text=config.target_image, 
+                 size=(50, 1),
+                 font=('Helvetica', 12)),
+         sg.FileBrowse(file_types=(("PNG Files", "*.png"), ("All Files", "*.*")),
+                      font=('Helvetica', 12)),
+         sg.Button("Capture", key='CAPTURE_TARGET', font=('Helvetica', 12))],
+        [sg.Text("Tribute Spot:", font=('Helvetica', 12)),
          sg.Input(key='TRIBUTE_SPOT', 
                  default_text=','.join(map(str, config.tribute_spot)),
-                 size=(20, 1)),
-         sg.Button("Get", key='GET_TRIBUTE_SPOT')],
-        [sg.Text("Portal Button:"),
+                 size=(30, 1),
+                 font=('Helvetica', 12)),
+         sg.Button("Get", key='GET_TRIBUTE_SPOT', font=('Helvetica', 12))],
+        [sg.Text("Portal Button:", font=('Helvetica', 12)),
          sg.Input(key='PORTAL_BUTTON',
                  default_text=','.join(map(str, config.portal_button)),
-                 size=(20, 1)),
-         sg.Button("Get", key='GET_PORTAL_BUTTON')],
-        [sg.Text("Match Confidence:"),
-         sg.Input(key='CONFIDENCE', default_text=str(config.confidence), size=(5, 1))],
-        [sg.Text("Click Delay:"),
-         sg.Input(key='CLICK_DELAY', default_text=str(config.click_delay), size=(5, 1))],
-        [sg.Text("Loop Delay:"),
-         sg.Input(key='LOOP_DELAY', default_text=str(config.loop_delay), size=(5, 1))],
-        [sg.Button("Save Configuration"), sg.Button("Start Process"), 
-         sg.Button("Stop Process"), sg.Button("Exit")],
-        [sg.Multiline(size=(60, 10), key='OUTPUT', disabled=True)]
+                 size=(30, 1),
+                 font=('Helvetica', 12)),
+         sg.Button("Get", key='GET_PORTAL_BUTTON', font=('Helvetica', 12))],
+        [sg.Text("Match Confidence:", font=('Helvetica', 12)),
+         sg.Input(key='CONFIDENCE', default_text=str(config.confidence), 
+                 size=(10, 1),
+                 font=('Helvetica', 12))],
+        [sg.Text("Click Delay:", font=('Helvetica', 12)),
+         sg.Input(key='CLICK_DELAY', default_text=str(config.click_delay), 
+                 size=(10, 1),
+                 font=('Helvetica', 12))],
+        [sg.Button("Save Configuration", font=('Helvetica', 12)), 
+         sg.Button("Start Process", font=('Helvetica', 12)), 
+         sg.Button("Stop Process", font=('Helvetica', 12)), 
+         sg.Button("Exit", font=('Helvetica', 12))],
+        [sg.Multiline(size=(70, 10), key='OUTPUT', disabled=True, 
+                     font=('Courier', 11))]
     ]
     
-    return sg.Window("Kurast Helper", layout, finalize=True)
+    return sg.Window("Kurast Helper", 
+                    layout, 
+                    finalize=True,
+                    keep_on_top=True)
 
 def validate_config(config: KurastConfig) -> bool:
     if config.scan_region == (0, 0, 0, 0):
@@ -226,65 +237,91 @@ def click_button(x: int, y: int, delay: float = 0.1) -> None:
         logging.error(f"Error clicking button at ({x}, {y}): {e}")
 
 def get_scan_region():
-    root = tk.Tk()
-    root.attributes('-alpha', 0.3)
-    root.attributes('-fullscreen', True)
-    root.configure(background='grey')
+    try:
+        root = tk.Tk()
+        # Get the screen width and height
+        screen_width = root.winfo_screenwidth()
+        screen_height = root.winfo_screenheight()
+        
+        # Configure the window
+        root.attributes('-alpha', 0.3)
+        root.attributes('-fullscreen', True)
+        root.geometry(f"{screen_width}x{screen_height}+0+0")
+        root.configure(background='grey')
+        
+        # Force the window to update its geometry
+        root.update_idletasks()
+        
+        # Create canvas with explicit dimensions
+        canvas = tk.Canvas(root, 
+                         width=screen_width,
+                         height=screen_height,
+                         cursor="cross",
+                         highlightthickness=0)
+        canvas.pack(fill=tk.BOTH, expand=True)
+        
+        rect = None
+        start_x = start_y = 0
+        region = None
+        drawing = False
 
-    canvas = tk.Canvas(root, cursor="cross")
-    canvas.pack(fill=tk.BOTH, expand=True)
-
-    rect = None
-    start_x = start_y = 0
-    region = None
-    drawing = False  # Add flag to track drawing state
-
-    def on_mouse_down(event):
-        nonlocal start_x, start_y, rect, drawing
-        start_x, start_y = event.x, event.y
-        drawing = True
-        if rect:
-            canvas.delete(rect)
-        rect = canvas.create_rectangle(start_x, start_y, start_x, start_y, outline='red', width=2)
-
-    def on_mouse_move(event):
-        nonlocal rect, drawing
-        if drawing:  # Only update rectangle if we're drawing
+        def on_mouse_down(event):
+            nonlocal start_x, start_y, rect, drawing
+            start_x, start_y = event.x, event.y
+            drawing = True
             if rect:
                 canvas.delete(rect)
-            rect = canvas.create_rectangle(start_x, start_y, event.x, event.y, outline='red', width=2)
+            rect = canvas.create_rectangle(start_x, start_y, start_x, start_y, 
+                                        outline='red', width=2)
 
-    def on_mouse_up(event):
-        nonlocal region, drawing
-        drawing = False
-        end_x, end_y = event.x, event.y
-        x = min(start_x, end_x)
-        y = min(start_y, end_y)
-        width = abs(end_x - start_x)
-        height = abs(end_y - start_y)
+        def on_mouse_move(event):
+            nonlocal rect, drawing
+            if drawing:
+                if rect:
+                    canvas.delete(rect)
+                rect = canvas.create_rectangle(start_x, start_y, event.x, event.y, 
+                                            outline='red', width=2)
+
+        def on_mouse_up(event):
+            nonlocal region, drawing
+            drawing = False
+            end_x, end_y = event.x, event.y
+            x = min(start_x, end_x)
+            y = min(start_y, end_y)
+            width = abs(end_x - start_x)
+            height = abs(end_y - start_y)
+            
+            if width > 5 and height > 5:
+                region = (x, y, width, height)
+                root.after(100, root.quit)
+
+        def on_key(event):
+            if event.keysym == 'Escape':
+                root.quit()
+
+        # Bind events
+        canvas.bind("<Button-1>", on_mouse_down)
+        canvas.bind("<B1-Motion>", on_mouse_move)
+        canvas.bind("<ButtonRelease-1>", on_mouse_up)
+        root.bind("<Key>", on_key)
+
+        # Ensure window is on top
+        root.lift()
+        root.attributes('-topmost', True)
         
-        if width > 5 and height > 5:  # Only set region if the selection is larger than 5x5 pixels
-            region = (x, y, width, height)
-            root.after(100, root.quit)  # Delay quit slightly to show final rectangle
-
-    def on_key(event):
-        if event.keysym == 'Escape':
-            root.quit()
-
-    # Bind mouse events
-    canvas.bind("<Button-1>", on_mouse_down)
-    canvas.bind("<B1-Motion>", on_mouse_move)
-    canvas.bind("<ButtonRelease-1>", on_mouse_up)
-    root.bind("<Key>", on_key)
-
-    # Make sure the window is on top
-    root.lift()
-    root.attributes('-topmost', True)
-
-    root.mainloop()
-    root.destroy()
-
-    return region
+        # Force another geometry update
+        root.update_idletasks()
+        
+        root.mainloop()
+        
+        if root:
+            root.destroy()
+            
+        return region
+        
+    except Exception as e:
+        logging.error(f"Error in get_scan_region: {e}")
+        return None
 
 def capture_target_image(window: sg.Window) -> Optional[str]:
     try:
@@ -397,13 +434,11 @@ def main():
                     window['TARGET_IMAGE'].update(filename)
                     window['OUTPUT'].print(f"Captured target image: {filename}")
             else:
-                position = get_mouse_position(window, key)
-                window[key].update(f"{position[0]},{position[1]}")
-        elif event == "CAPTURE_TARGET":
-            filename = capture_target_image(window)
-            if filename:
-                window['TARGET_IMAGE'].update(filename)
-                window['OUTPUT'].print(f"Captured target image: {filename}")
+                window.hide()
+                time.sleep(2)  # Give user time to position mouse
+                pos = pyautogui.position()
+                window.un_hide()
+                window[key].update(f"{pos[0]},{pos[1]}")
         elif event == "Save Configuration":
             try:
                 scan_region = tuple(map(int, values['SCAN_REGION'].split(',')))

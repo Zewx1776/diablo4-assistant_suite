@@ -144,14 +144,18 @@ class RestockProcess(threading.Thread):
 
 def create_main_window(config: RestockConfig) -> sg.Window:
     layout = [
-        [sg.Text("Restock Configuration")],
-        [sg.Text("Restock Button:"), 
-         sg.Input(key='RESTOCK', default_text=f"{config.restock_button[0]},{config.restock_button[1]}", 
-                 size=(15, 1)), 
-         sg.Button("Get", key='GET_RESTOCK')],
-        [sg.Text("Target Words (comma-separated):"), 
-         sg.Input(key='TARGET_WORDS', default_text=','.join(config.target_words), size=(40, 1))],
-        [sg.Text("Scan Regions:", font=('Helvetica', 10, 'bold'))],
+        [sg.Text("Restock Configuration", font=('Helvetica', 20, 'bold'))],
+        [sg.Text("Restock Button:", font=('Helvetica', 12)), 
+         sg.Input(key='RESTOCK', 
+                 default_text=f"{config.restock_button[0]},{config.restock_button[1]}", 
+                 size=(30, 1),
+                 font=('Helvetica', 12)), 
+         sg.Button("Get", key='GET_RESTOCK', font=('Helvetica', 12))],
+        [sg.Text("Target Words (comma-separated):", font=('Helvetica', 12)), 
+         sg.Input(key='TARGET_WORDS', default_text=','.join(config.target_words), 
+                 size=(50, 1),
+                 font=('Helvetica', 12))],
+        [sg.Text("Scan Regions:", font=('Helvetica', 14, 'bold'))],
     ]
     
     # Add 8 scan regions (2 rows of 4)
@@ -161,21 +165,29 @@ def create_main_window(config: RestockConfig) -> sg.Window:
             region_index = row * 4 + col
             region = config.scan_regions[region_index]
             region_row.extend([
-                sg.Text(f"Region {region_index + 1}:"),
+                sg.Text(f"Region {region_index + 1}:", font=('Helvetica', 12)),
                 sg.Input(key=f'SCAN_REGION_{region_index}', 
                         default_text=','.join(map(str, region)), 
-                        size=(20, 1)),
-                sg.Button("Get", key=f'GET_SCAN_REGION_{region_index}')
+                        size=(30, 1),
+                        font=('Helvetica', 12)),
+                sg.Button("Get", key=f'GET_SCAN_REGION_{region_index}',
+                         font=('Helvetica', 12))
             ])
         layout.append(region_row)
 
     layout.extend([
-        [sg.Button("Save Configuration"), sg.Button("Start Process"), 
-         sg.Button("Stop Process"), sg.Button("Exit")],
-        [sg.Multiline(size=(60, 10), key='OUTPUT', disabled=True)]
+        [sg.Button("Save Configuration", font=('Helvetica', 12)), 
+         sg.Button("Start Process", font=('Helvetica', 12)), 
+         sg.Button("Stop Process", font=('Helvetica', 12)), 
+         sg.Button("Exit", font=('Helvetica', 12))],
+        [sg.Multiline(size=(70, 10), key='OUTPUT', disabled=True, 
+                     font=('Courier', 11))]
     ])
     
-    return sg.Window("Restock Helper", layout, finalize=True)
+    return sg.Window("Restock Helper", 
+                    layout, 
+                    finalize=True,
+                    keep_on_top=True)
 
 def validate_config(config: RestockConfig) -> bool:
     if config.restock_button == (0, 0):
@@ -219,7 +231,12 @@ def get_mouse_click() -> Tuple[int, int]:
 
 def get_mouse_position(window: sg.Window, key: str) -> Tuple[int, int]:
     window.hide()
-    popup = sg.Window("Get Position", [[sg.Text(f"Click on the desired position for {key}")]], no_titlebar=True, keep_on_top=True, finalize=True)
+    popup = sg.Window("Get Position", 
+                     [[sg.Text(f"Click on the desired position for {key}")]], 
+                     no_titlebar=True, 
+                     keep_on_top=True,
+                     finalize=True,
+                     alpha_channel=0.9)  # Added slight transparency
     
     position = get_mouse_click()
     

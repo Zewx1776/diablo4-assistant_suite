@@ -215,7 +215,10 @@ def create_main_window(config: EnchantConfig) -> sg.Window:
         [sg.Multiline(size=(60, 10), key='OUTPUT', disabled=True)]
     ])
     
-    return sg.Window("Enchant Helper", layout, finalize=True)
+    return sg.Window("Enchant Helper", 
+                    layout, 
+                    finalize=True,
+                    keep_on_top=True)
 
 def validate_config(config: EnchantConfig) -> bool:
     if config.enchant_button == (0, 0):
@@ -265,9 +268,15 @@ def get_mouse_click() -> Tuple[int, int]:
 
 def get_mouse_position(window: sg.Window, key: str) -> Tuple[int, int]:
     window.hide()
-    popup = sg.Window("Get Position", [[sg.Text(f"Click on the desired position for {key}")]], 
-                     no_titlebar=True, keep_on_top=True, finalize=True)
+    popup = sg.Window("Get Position", 
+                     [[sg.Text(f"Click on the desired position for {key}")]], 
+                     no_titlebar=True, 
+                     keep_on_top=True,
+                     finalize=True,
+                     alpha_channel=0.9)  # Added slight transparency
+    
     position = get_mouse_click()
+    
     popup.close()
     window.un_hide()
     return position

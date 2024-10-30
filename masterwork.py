@@ -18,8 +18,7 @@ from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, asdict
 import re 
 from shared_config import apply_theme
-
-pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+import sys
 
 CONFIG_FILE = 'upgrade_config.json'
 
@@ -191,7 +190,12 @@ def get_mouse_click() -> Tuple[int, int]:
 
 def get_mouse_position(window: sg.Window, key: str) -> Tuple[int, int]:
     window.hide()
-    popup = sg.Window("Get Position", [[sg.Text(f"Click on the desired position for {key}")]], no_titlebar=True, keep_on_top=True, finalize=True)
+    popup = sg.Window("Get Position", 
+                     [[sg.Text(f"Click on the desired position for {key}")]], 
+                     no_titlebar=True, 
+                     keep_on_top=True,
+                     finalize=True,
+                     alpha_channel=0.9)  # Added slight transparency
     
     position = get_mouse_click()
     
@@ -206,67 +210,120 @@ def make_window_transparent(window):
     win32gui.SetLayeredWindowAttributes(hwnd, win32api.RGB(0, 0, 0), 0, win32con.LWA_COLORKEY)
 
 def get_scan_region():
-    root = tk.Tk()
-    root.attributes('-alpha', 0.3)  # Set window transparency
-    root.attributes('-fullscreen', True)
-    root.configure(background='grey')
-
-    canvas = tk.Canvas(root, cursor="cross")
-    canvas.pack(fill=tk.BOTH, expand=True)
-
-    rect = None
-    start_x = start_y = 0
+    root = None
     region = None
+    try:
+        root = tk.Tk()
+        root.attributes('-alpha', 0.3)  # Set window transparency
+        root.attributes('-fullscreen', True)
+        root.configure(background='grey')
 
-    def on_mouse_down(event):
-        nonlocal start_x, start_y, rect
-        start_x, start_y = event.x, event.y
-        if rect:
-            canvas.delete(rect)
-        rect = canvas.create_rectangle(start_x, start_y, start_x, start_y, outline='red', width=2)
+        canvas = tk.Canvas(root, cursor="cross")
+        canvas.pack(fill=tk.BOTH, expand=True)
 
-    def on_mouse_move(event):
-        nonlocal rect
-        if rect:
-            canvas.delete(rect)
-            rect = canvas.create_rectangle(start_x, start_y, event.x, event.y, outline='red', width=2)
+        rect = None
+        start_x = start_y = 0
 
-    def on_mouse_up(event):
-        nonlocal region
-        end_x, end_y = event.x, event.y
-        region = (min(start_x, end_x), min(start_y, end_y), 
-                  abs(end_x - start_x), abs(end_y - start_y))
-        root.quit()
+        def on_mouse_down(event):
+            nonlocal start_x, start_y, rect
+            start_x, start_y = event.x, event.y
+            if rect:
+                canvas.delete(rect)
+            rect = canvas.create_rectangle(start_x, start_y, start_x, start_y, outline='red', width=2)
 
-    def on_key(event):
-        if event.keysym == 'Escape':
+        def on_mouse_move(event):
+            nonlocal rect
+            if rect:
+                canvas.delete(rect)
+                rect = canvas.create_rectangle(start_x, start_y, event.x, event.y, outline='red', width=2)
+
+        def on_mouse_up(event):
+            nonlocal region
+            end_x, end_y = event.x, event.y
+            region = (min(start_x, end_x), min(start_y, end_y), 
+                     abs(end_x - start_x), abs(end_y - start_y))
             root.quit()
 
-    canvas.bind("<ButtonPress-1>", on_mouse_down)
-    canvas.bind("<B1-Motion>", on_mouse_move)
-    canvas.bind("<ButtonRelease-1>", on_mouse_up)
-    root.bind("<Key>", on_key)
+        def on_key(event):
+            if event.keysym == 'Escape':
+                root.quit()
 
-    root.mainloop()
-    root.destroy()
+        canvas.bind("<ButtonPress-1>", on_mouse_down)
+        canvas.bind("<B1-Motion>", on_mouse_move)
+        canvas.bind("<ButtonRelease-1>", on_mouse_up)
+        root.bind("<Key>", on_key)
 
-    return region
+        root.mainloop()
+        return region
+    except Exception as e:
+        logging.error(f"Error in get_scan_region: {e}")
+        return None
+    finally:
+        if root:
+            try:
+                root.destroy()
+            except Exception as e:
+                logging.error(f"Error destroying root window: {e}")
 
 def create_main_window(config: Config) -> sg.Window:
     layout = [
-        [sg.Text("Upgrade and Check Configuration")],
-        [sg.Text("Upgrade Button:"), sg.Input(key='UPGRADE', default_text=f"{config.upgrade_button[0]},{config.upgrade_button[1]}", size=(15, 1)), sg.Button("Get", key='GET_UPGRADE')],
-        [sg.Text("Skip Button:"), sg.Input(key='SKIP', default_text=f"{config.skip_button[0]},{config.skip_button[1]}", size=(15, 1)), sg.Button("Get", key='GET_SKIP')],
-        [sg.Text("Close Button:"), sg.Input(key='CLOSE', default_text=f"{config.close_button[0]},{config.close_button[1]}", size=(15, 1)), sg.Button("Get", key='GET_CLOSE')],
-        [sg.Text("Reset Button:"), sg.Input(key='RESET', default_text=f"{config.reset_button[0]},{config.reset_button[1]}", size=(15, 1)), sg.Button("Get", key='GET_RESET')],
-        [sg.Text("Confirm Button:"), sg.Input(key='CONFIRM', default_text=f"{config.confirm_button[0]},{config.confirm_button[1]}", size=(15, 1)), sg.Button("Get", key='GET_CONFIRM')],
-        [sg.Text("Scan Region:"), sg.Input(key='SCAN_REGION', default_text=','.join(map(str, config.scan_region)), size=(20, 1)), sg.Button("Get", key='GET_SCAN_REGION')],
-        [sg.Text("Target Word:"), sg.Input(key='TARGET_WORD', default_text=config.target_word, size=(15, 1))],
-        [sg.Text("Max Count:"), sg.Input(key='MAX_COUNT', default_text=str(config.max_count), size=(5, 1))],
-        [sg.Button("Save Configuration"), sg.Button("Start Process"), sg.Button("Stop Process"), sg.Button("Exit")],
-        [sg.Multiline(size=(60, 10), key='OUTPUT', disabled=True)]
+        [sg.Text("Upgrade and Check Configuration", font=('Helvetica', 20, 'bold'))],
+        [sg.Text("Upgrade Button:", font=('Helvetica', 12)), 
+         sg.Input(key='UPGRADE', 
+                 default_text=f"{config.upgrade_button[0]},{config.upgrade_button[1]}", 
+                 size=(30, 1),
+                 font=('Helvetica', 12)), 
+         sg.Button("Get", key='GET_UPGRADE', font=('Helvetica', 12))],
+        [sg.Text("Skip Button:", font=('Helvetica', 12)), 
+         sg.Input(key='SKIP', 
+                 default_text=f"{config.skip_button[0]},{config.skip_button[1]}", 
+                 size=(30, 1),
+                 font=('Helvetica', 12)), 
+         sg.Button("Get", key='GET_SKIP', font=('Helvetica', 12))],
+        [sg.Text("Close Button:", font=('Helvetica', 12)), 
+         sg.Input(key='CLOSE', 
+                 default_text=f"{config.close_button[0]},{config.close_button[1]}", 
+                 size=(30, 1),
+                 font=('Helvetica', 12)), 
+         sg.Button("Get", key='GET_CLOSE', font=('Helvetica', 12))],
+        [sg.Text("Reset Button:", font=('Helvetica', 12)), 
+         sg.Input(key='RESET', 
+                 default_text=f"{config.reset_button[0]},{config.reset_button[1]}", 
+                 size=(30, 1),
+                 font=('Helvetica', 12)), 
+         sg.Button("Get", key='GET_RESET', font=('Helvetica', 12))],
+        [sg.Text("Confirm Button:", font=('Helvetica', 12)), 
+         sg.Input(key='CONFIRM', 
+                 default_text=f"{config.confirm_button[0]},{config.confirm_button[1]}", 
+                 size=(30, 1),
+                 font=('Helvetica', 12)), 
+         sg.Button("Get", key='GET_CONFIRM', font=('Helvetica', 12))],
+        [sg.Text("Scan Region:", font=('Helvetica', 12)), 
+         sg.Input(key='SCAN_REGION', 
+                 default_text=','.join(map(str, config.scan_region)), 
+                 size=(30, 1),
+                 font=('Helvetica', 12)), 
+         sg.Button("Get", key='GET_SCAN_REGION', font=('Helvetica', 12))],
+        [sg.Text("Target Word:", font=('Helvetica', 12)), 
+         sg.Input(key='TARGET_WORD', default_text=config.target_word, 
+                 size=(30, 1),
+                 font=('Helvetica', 12))],
+        [sg.Text("Max Count:", font=('Helvetica', 12)), 
+         sg.Input(key='MAX_COUNT', default_text=str(config.max_count), 
+                 size=(10, 1),
+                 font=('Helvetica', 12))],
+        [sg.Button("Save Configuration", font=('Helvetica', 12)), 
+         sg.Button("Start Process", font=('Helvetica', 12)), 
+         sg.Button("Stop Process", font=('Helvetica', 12)), 
+         sg.Button("Exit", font=('Helvetica', 12))],
+        [sg.Multiline(size=(70, 10), key='OUTPUT', disabled=True, 
+                     font=('Courier', 11))]
     ]
-    return sg.Window("Upgrade and Check", layout, finalize=True)
+    
+    return sg.Window("Masterwork Helper", 
+                    layout, 
+                    finalize=True,
+                    keep_on_top=True)
 
 def validate_config(config: Config) -> bool:
     if any(v == (0, 0) for v in [config.upgrade_button, config.skip_button, config.close_button, config.reset_button, config.confirm_button]):
@@ -277,12 +334,42 @@ def validate_config(config: Config) -> bool:
         return False
     return True
 
+def init_tesseract():
+    try:
+        # First try the bundled version
+        base_path = getattr(sys, '_MEIPASS', os.path.abspath('.'))
+        tesseract_path = os.path.join(base_path, 'Tesseract-OCR', 'tesseract.exe')
+        if os.path.exists(tesseract_path):
+            pytesseract.pytesseract.tesseract_cmd = tesseract_path
+        else:
+            # Fall back to installed version
+            default_path = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
+            if os.path.exists(default_path):
+                pytesseract.pytesseract.tesseract_cmd = default_path
+            else:
+                raise FileNotFoundError("Tesseract executable not found")
+    except Exception as e:
+        sg.popup_error(f"Error initializing Tesseract: {str(e)}")
+        sys.exit(1)
+
+init_tesseract()
+
 def main():
     apply_theme()
     config = load_config()
     window = create_main_window(config)
 
     upgrade_process = None
+
+    def stop_upgrade_process(upgrade_process):
+        if upgrade_process and upgrade_process.is_alive():
+            upgrade_process.stop()
+            upgrade_process.join(timeout=5)  # Add timeout
+            if upgrade_process.is_alive():
+                logging.warning("Thread failed to terminate gracefully")
+                # Optionally, you could add more aggressive termination here
+                # But be careful with this approach
+                # upgrade_process.daemon = True
 
     while True:
         event, values = window.read()
@@ -331,26 +418,19 @@ def main():
             else:
                 window['OUTPUT'].print("Process is already running.")
         elif event == "Stop Process":
-            if upgrade_process and upgrade_process.is_alive():
-                upgrade_process.stop()
-                upgrade_process.join()
-                window['OUTPUT'].print("Process stopped.")
-            else:
-                window['OUTPUT'].print("No process is running.")
+            stop_upgrade_process(upgrade_process)
+            window['OUTPUT'].print("Process stopped.")
         elif event == '-UPDATE-':
             window['OUTPUT'].print(values['-UPDATE-'])
         
         # Check for 'P' key press to terminate the process
         if keyboard.is_pressed('p') and upgrade_process and upgrade_process.is_alive():
-            upgrade_process.stop()
-            upgrade_process.join()
+            stop_upgrade_process(upgrade_process)
             window['OUTPUT'].print("Process terminated by user (P key pressed)")
             upgrade_process = None
 
-    if upgrade_process and upgrade_process.is_alive():
-        upgrade_process.stop()
-        upgrade_process.join()
-
+    # Cleanup when closing window
+    stop_upgrade_process(upgrade_process)
     window.close()
 
 if __name__ == "__main__":
